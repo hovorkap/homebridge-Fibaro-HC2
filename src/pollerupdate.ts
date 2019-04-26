@@ -14,7 +14,7 @@
 
 // Fibaro Home Center 2 Platform plugin for HomeBridge
 
-'use strict'
+'use strict';
 
 const VALUE_GET = "hb_fhc2_value_get";
 
@@ -35,13 +35,13 @@ export class Poller {
 		this.hapService = hapService;
 		this.hapCharacteristic = hapCharacteristic;
 	}
-	
+
 	poll() {
-		if(this.pollingUpdateRunning ) {
+		if (this.pollingUpdateRunning) {
 			return;
 		}
 		this.pollingUpdateRunning = true;
-	
+
 		this.platform.fibaroClient.refreshStates(this.lastPoll)
 			.then((updates) => {
 				if (updates.last != undefined)
@@ -55,7 +55,7 @@ export class Poller {
 							this.manageValue(change);
 						} else if (change.color != undefined) {
 							this.manageColor(change);
-						} 
+						}
 					});
 				}
 				if (updates.events != undefined) {
@@ -76,20 +76,20 @@ export class Poller {
 							if (c.value != statec)
 								c.updateValue(statec);
 						})
-						.catch((err) =>{
-							this.platform.log("There was a problem getting value from Global Variable: SecuritySystem", ` - Err: ${err}` );
+						.catch((err) => {
+							this.platform.log("There was a problem getting value from Global Variable: SecuritySystem", ` - Err: ${err}`);
 						});
 				}
 				// Manage global variable switches
 				if (this.platform.config.switchglobalvariables != "") {
 					let globalVariables = this.platform.config.switchglobalvariables.split(',');
-					for(let i = 0; i < globalVariables.length; i++) {
+					for (let i = 0; i < globalVariables.length; i++) {
 						this.platform.fibaroClient.getGlobalVariable(globalVariables[i])
 							.then((switchStatus) => {
 								this.platform.getFunctions.getBool(null, this.searchCharacteristic(globalVariables[i]), null, null, switchStatus);
 							})
-							.catch((err) =>{
-								this.platform.log("There was a problem getting value from Global Variable: ", `${globalVariables[i]} - Err: ${err}` );
+							.catch((err) => {
+								this.platform.log("There was a problem getting value from Global Variable: ", `${globalVariables[i]} - Err: ${err}`);
 							});
 					}
 				}
@@ -99,11 +99,13 @@ export class Poller {
 				if (err == 400) {
 					this.lastPoll = 0;
 				}
-		});
+			});
 		this.pollingUpdateRunning = false;
-		setTimeout( () => { this.poll()}, this.pollerPeriod * 1000);
+		setTimeout(() => {
+			this.poll()
+		}, this.pollerPeriod * 1000);
 	}
-	
+
 	manageValue(change) {
 		for (let i = 0; i < this.platform.updateSubscriptions.length; i++) {
 			let subscription = this.platform.updateSubscriptions[i];
@@ -118,7 +120,7 @@ export class Poller {
 					getFunction.function.call(this.platform.getFunctions, null, subscription.characteristic, subscription.service, null, change);
 			}
 		}
-	}	
+	}
 
 	manageColor(change) {
 		for (let i = 0; i < this.platform.updateSubscriptions.length; i++) {
@@ -126,7 +128,7 @@ export class Poller {
 			if (subscription.id == change.id && subscription.property == "color") {
 				let hsv = this.platform.getFunctions.updateHomeKitColorFromHomeCenter(change.color, subscription.service);
 				if (subscription.characteristic.UUID == (new this.hapCharacteristic.On()).UUID)
-					subscription.characteristic.updateValue(hsv.v == 0 ? false : true);
+					subscription.characteristic.updateValue(hsv.v != 0);
 				else if (subscription.characteristic.UUID == (new this.hapCharacteristic.Hue()).UUID)
 					subscription.characteristic.updateValue(Math.round(hsv.h));
 				else if (subscription.characteristic.UUID == (new this.hapCharacteristic.Saturation()).UUID)
@@ -147,12 +149,11 @@ export class Poller {
 					getFunction.function.call(this.platform.getFunctions, null, subscription.characteristic, subscription.service, null, null);
 			}
 		}
-	}	
+	}
 
 	searchCharacteristic(globalVariablesID) {
-		let a = this.platform.accessories.get(globalVariablesID + "0");
-		let s = a.getService(this.hapService.Switch);
-		let c = s.getCharacteristic(this.hapCharacteristic.On);
-		return c;
+		let accessory = this.platform.accessories.get(globalVariablesID + "0");
+		let service = accessory.getService(this.hapService.Switch);
+		return service.getCharacteristic(this.hapCharacteristic.On);
 	}
 }

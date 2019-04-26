@@ -14,7 +14,7 @@
 
 // Fibaro Home Center 2 Platform plugin for HomeBridge
 
-'use strict'
+'use strict';
 
 export const lowestTemp = 12;
 export const stdTemp = 21;
@@ -37,7 +37,7 @@ export class SetFunctions {
 			[(new hapCharacteristic.On()).UUID, 							this.setOn],
 			[(new hapCharacteristic.Brightness()).UUID, 					this.setBrightness],
 			[(new hapCharacteristic.TargetPosition()).UUID, 				this.setTargetPosition],
-			[(new hapCharacteristic.TargetHorizontalTiltAngle()).UUID, this.setTargetTiltAngle],
+			[(new hapCharacteristic.TargetHorizontalTiltAngle()).UUID, 		this.setTargetTiltAngle],
 			[(new hapCharacteristic.LockTargetState()).UUID, 				this.setLockTargetState],
 			[(new hapCharacteristic.TargetHeatingCoolingState()).UUID, 		this.setTargetHeatingCoolingState],
 			[(new hapCharacteristic.TargetTemperature()).UUID, 				this.setTargetTemperature],

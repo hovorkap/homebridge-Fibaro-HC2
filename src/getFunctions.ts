@@ -14,7 +14,7 @@
 
 // Fibaro Home Center 2 Platform plugin for HomeBridge
 
-'use strict'
+'use strict';
 
 import {lowestTemp, SetFunctions} from './setFunctions'
 
@@ -89,8 +89,8 @@ export class GetFunctions {
 		let v = properties.value;
 		if (v) {
 			let r = (v == "true" || v == "false") ?
-				((v == "false") ? false : true)   :
-				((parseInt(v) == 0) ? false : true);
+				((v != "false"))   :
+				((parseInt(v) != 0));
 			this.returnValue(r, callback, characteristic);
 		} else {
 			v = properties["ui.startStopActivitySwitch.value"];
@@ -159,7 +159,7 @@ export class GetFunctions {
 		this.returnValue(properties.value == "true" ? this.hapCharacteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL : this.hapCharacteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL, callback, characteristic);
 	}
 	getOutletInUse(callback, characteristic, service, IDs, properties) {
-		this.returnValue(parseFloat(properties.power) > 1.0 ? true : false, callback, characteristic);
+		this.returnValue(parseFloat(properties.power) > 1.0, callback, characteristic);
 	}
 	getLockCurrentState(callback, characteristic, service, IDs, properties) {
 		if (service.isLockSwitch) {
