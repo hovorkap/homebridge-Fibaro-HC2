@@ -291,7 +291,7 @@ export class ShadowFactory {
 			return undefined;
 		}
 
-		if (this.hasBatteryInterface(device)) {
+		if (ShadowFactory.hasBatteryInterface(device)) {
 			ss.push(this.createBatteryService(device))
 		}
 
@@ -310,7 +310,7 @@ export class ShadowFactory {
 		return new ShadowAccessory(device, [service], this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform, true);
 	}
 
-	hasBatteryInterface(device: any): boolean {
+	static hasBatteryInterface(device: any): boolean {
 		return device.interfaces && device.interfaces.includes("battery")
 	}
 
