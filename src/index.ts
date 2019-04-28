@@ -194,8 +194,10 @@ class FibaroHC2 {
 		this.log('Loading accessories', '');
 		devices.map((device, i, a) => {
 			if (device.visible && device.name.charAt(0) != "_") {
-				let siblings = this.findSiblingDevices(device, a);
-				this.addAccessory(this.shadowFactory.createShadowAccessory(device, siblings));
+				let accessory = this.shadowFactory.createShadowAccessory(device, devices);
+				if (accessory) {
+					this.addAccessory(accessory);
+				}
 			}
 		});
 
@@ -228,8 +230,6 @@ class FibaroHC2 {
 	}
 
 	addAccessory(shadowAccessory) {
-		if (shadowAccessory == undefined)
-			return;
 		let uniqueSeed = shadowAccessory.name + shadowAccessory.roomID;
 		let isNewAccessory = false;
 		let a: any = this.accessories.get(uniqueSeed);
@@ -372,20 +372,6 @@ class FibaroHC2 {
 				this.securitySystemScenes[s.name] = s.id;
 			});
 		}
-	}
-
-	findSiblingDevices(device, devices) {
-		let siblings = new Map<string, object>();
-
-		devices.map((s, i, a) => {
-			if (s.visible && s.name.charAt(0) != "_") {
-				if (device.parentId == s.parentId && device.id != s.id) {
-					siblings.set(s.type, s);
-				}
-			}
-		});
-
-		return siblings;
 	}
 
 	notifyIFTTT(e, val1, val2, val3) {

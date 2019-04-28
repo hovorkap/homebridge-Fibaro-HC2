@@ -134,9 +134,52 @@ export class ShadowFactory {
 		this.platform = platform;
 	}
 
-	createShadowAccessory(device: any, siblings: any) {
-		let ss;
+	createShadowAccessory(device: any, devices: any) {
+		let ss = this.createShadowServices(device, devices);
+		
+		if (!ss.length) {
+			return undefined;
+		}
+
+		if (ShadowFactory.hasBatteryInterface(device)) {
+			ss.push(this.createBatteryService(device))
+		}
+
+		return new ShadowAccessory(device, ss, this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform);
+	}
+
+	createShadowSecuritySystemAccessory(device) {
+		let service = new ShadowService(new this.hapService.SecuritySystem("FibaroSecuritySystem"), [this.hapCharacteristic.SecuritySystemCurrentState, this.hapCharacteristic.SecuritySystemTargetState]);
+		service.controlService.subtype = "0--";
+		return new ShadowAccessory(device, [service], this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform, true);
+	}
+
+	createShadowGlobalVariableSwitchAccessory(device) {
+		let service = new ShadowService(new this.hapService.Switch(device.name), [this.hapCharacteristic.On]);
+		service.controlService.subtype = `G-${device.name}-`;
+		return new ShadowAccessory(device, [service], this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform, true);
+	}
+
+	static hasBatteryInterface(device: any): boolean {
+		return device.interfaces && device.interfaces.includes("battery")
+	}
+
+	createBatteryService(device) {
+		return new ShadowService(
+			new this.hapService.BatteryService(device.name),
+			[
+				this.hapCharacteristic.BatteryLevel,
+				this.hapCharacteristic.StatusLowBattery
+				// ,hapCharacteristic.ChargingState // not supported by fibaro
+			]
+		)
+	}
+	
+	createShadowServices(device: any, devices: Map<string, any>)  {
+		let ss: ShadowService[] = [];
 		let controlService, controlCharacteristics;
+
+		let factory = new AbstractDeviceFactory(this.hapService, this.hapCharacteristic);
 
 		switch (device.type) {
 			case "com.fibaro.multilevelSwitch":
@@ -161,20 +204,16 @@ export class ShadowFactory {
 					case "2": // Lighting
 					case "5": // Bedside Lamp
 					case "7": // Wall Lamp
-						controlService = new this.hapService.Lightbulb(device.name);
-						controlCharacteristics = [this.hapCharacteristic.On];
+						ss = new LightBulbFactory(this.hapService, this.hapCharacteristic).createService(device);
 						break;
 					case "25": // Video gate open
-						controlService = new this.hapService.LockMechanism(device.name);
-						controlService.subtype = device.id + "----" + "LOCK";
-						controlCharacteristics = [this.hapCharacteristic.LockCurrentState, this.hapCharacteristic.LockTargetState];
+						ss = new LockMechanismFactory(this.hapService, this.hapCharacteristic).createService(device);
+
 						break;
 					default:
-						controlService = new this.hapService.Switch(device.name);
-						controlCharacteristics = [this.hapCharacteristic.On];
+						ss = new SwitchFactory(this.hapService, this.hapCharacteristic).createService(device);
 						break;
 				}
-				ss = [new ShadowService(controlService, controlCharacteristics)];
 				break;
 			case "com.fibaro.barrier":
 				ss = [new ShadowService(new this.hapService.GarageDoorOpener(device.name), [this.hapCharacteristic.CurrentDoorState, this.hapCharacteristic.TargetDoorState, this.hapCharacteristic.ObstructionDetected])];
@@ -183,20 +222,7 @@ export class ShadowFactory {
 			case "com.fibaro.FGRM222":
 			case "com.fibaro.FGR223":
 			case "com.fibaro.rollerShutter":
-
-				controlService = new this.hapService.WindowCovering(device.name);
-				controlCharacteristics = [
-					this.hapCharacteristic.CurrentPosition,
-					this.hapCharacteristic.TargetPosition,
-					this.hapCharacteristic.PositionState
-				];
-				if (device.actions.setValue2 == 1) {
-					controlCharacteristics.push(
-						this.hapCharacteristic.CurrentHorizontalTiltAngle,
-						this.hapCharacteristic.TargetHorizontalTiltAngle
-					);
-				}
-				ss = [new ShadowService(controlService, controlCharacteristics)];
+				ss = new WindowsCoveringFactory(this.hapService, this.hapCharacteristic).createService(device);
 				break;
 			case "com.fibaro.FGMS001":
 			case "com.fibaro.FGMS001v2":
@@ -241,15 +267,7 @@ export class ShadowFactory {
 			case "com.fibaro.FGT001":
 			case "com.fibaro.thermostatDanfoss":
 			case "com.fibaro.com.fibaro.thermostatHorstmann":
-				controlService = new this.hapService.Thermostat(device.name);
-				controlCharacteristics = [this.hapCharacteristic.CurrentTemperature, this.hapCharacteristic.TargetTemperature, this.hapCharacteristic.CurrentHeatingCoolingState, this.hapCharacteristic.TargetHeatingCoolingState, this.hapCharacteristic.TemperatureDisplayUnits];
-				// Check the presence of an associated operating mode device
-				let m = siblings.get("com.fibaro.operatingMode");
-				if (m) {
-					controlService.operatingModeId = m.id;
-					controlService.subtype = device.id + "---" + m.id;
-				}
-				ss = [new ShadowService(controlService, controlCharacteristics)];
+				ss = factory.for(ThermostatFactory).createService(device, devices);
 				break;
 			case "virtual_device":
 				let pushButtonServices: Array<ShadowService> = [];
@@ -285,43 +303,105 @@ export class ShadowFactory {
 				ss = [new ShadowService(controlService, [this.hapCharacteristic.On])];
 				break;
 			default:
-				break
-		}
-		if (!ss) {
-			return undefined;
+				break;
 		}
 
-		if (ShadowFactory.hasBatteryInterface(device)) {
-			ss.push(this.createBatteryService(device))
-		}
-
-		return new ShadowAccessory(device, ss, this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform);
-	}
-
-	createShadowSecuritySystemAccessory(device) {
-		let service = new ShadowService(new this.hapService.SecuritySystem("FibaroSecuritySystem"), [this.hapCharacteristic.SecuritySystemCurrentState, this.hapCharacteristic.SecuritySystemTargetState]);
-		service.controlService.subtype = "0--";
-		return new ShadowAccessory(device, [service], this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform, true);
-	}
-
-	createShadowGlobalVariableSwitchAccessory(device) {
-		let service = new ShadowService(new this.hapService.Switch(device.name), [this.hapCharacteristic.On]);
-		service.controlService.subtype = `G-${device.name}-`;
-		return new ShadowAccessory(device, [service], this.hapAccessory, this.hapService, this.hapCharacteristic, this.platform, true);
-	}
-
-	static hasBatteryInterface(device: any): boolean {
-		return device.interfaces && device.interfaces.includes("battery")
-	}
-
-	createBatteryService(device) {
-		return new ShadowService(
-			new this.hapService.BatteryService(device.name),
-			[
-				this.hapCharacteristic.BatteryLevel,
-				this.hapCharacteristic.StatusLowBattery
-				// ,hapCharacteristic.ChargingState // not supported by fibaro
-			]
-		)
+		return ss;
 	}
 }
+
+export class AbstractDeviceFactory {
+	hapService: any;
+	hapCharacteristic: any;
+
+	constructor(hapService: any, hapCharacteristic: any) {
+		this.hapService = hapService;
+		this.hapCharacteristic = hapCharacteristic
+	}
+	
+	for<T extends ServiceFactory>(testType: new(hapService: any, hapCharacteristic: any) => T): T
+	{
+		return new testType(this.hapService, this.hapCharacteristic);
+	}
+}
+
+export class ServiceFactory {
+	hapService: any;
+	hapCharacteristic: any;
+
+	constructor(hapService: any, hapCharacteristic: any) {
+		this.hapService = hapService;
+		this.hapCharacteristic = hapCharacteristic
+	}
+
+	findSiblingDevices(device, devices) {
+		let siblings = new Map<string, any>();
+
+		devices.map((s, i, a) => {
+			if (s.visible && s.name.charAt(0) != "_") {
+				if (device.parentId == s.parentId && device.id != s.id) {
+					siblings.set(s.type, s);
+				}
+			}
+		});
+
+		return siblings;
+	}
+}
+
+export class LightBulbFactory extends ServiceFactory{
+	
+	createService(device: any) {
+		return [new ShadowService(new this.hapService.Lightbulb(device.name), [this.hapCharacteristic.On])];
+	}
+}
+export class LockMechanismFactory extends ServiceFactory{
+	createService(device: any) {
+		let controlService = new this.hapService.LockMechanism(device.name);
+		controlService.subtype = device.id + "----" + "LOCK";
+		let controlCharacteristics = [this.hapCharacteristic.LockCurrentState, this.hapCharacteristic.LockTargetState];
+
+		return [new ShadowService(controlService, controlCharacteristics)];
+	}
+}
+
+export class SwitchFactory extends ServiceFactory {
+	createService(device: any) {
+		let controlService = new this.hapService.Switch(device.name);
+		let controlCharacteristics = [this.hapCharacteristic.On];
+		return [new ShadowService(controlService, controlCharacteristics)];
+	}
+}
+
+export class WindowsCoveringFactory extends ServiceFactory {
+	createService(device: any) {
+		let controlService = new this.hapService.WindowCovering(device.name);
+		let controlCharacteristics = [
+			this.hapCharacteristic.CurrentPosition,
+			this.hapCharacteristic.TargetPosition,
+			this.hapCharacteristic.PositionState
+		];
+		if (device.actions.setValue2 == 1) {
+			controlCharacteristics.push(
+				this.hapCharacteristic.CurrentHorizontalTiltAngle,
+				this.hapCharacteristic.TargetHorizontalTiltAngle
+			);
+		}
+		return [new ShadowService(controlService, controlCharacteristics)];
+	}
+}
+
+export class ThermostatFactory extends ServiceFactory {
+	createService(device: any, devices: Map<string, any>) {
+		let controlService = new this.hapService.Thermostat(device.name);
+		let controlCharacteristics = [this.hapCharacteristic.CurrentTemperature, this.hapCharacteristic.TargetTemperature, this.hapCharacteristic.CurrentHeatingCoolingState, this.hapCharacteristic.TargetHeatingCoolingState, this.hapCharacteristic.TemperatureDisplayUnits];
+		// Check the presence of an associated operating mode device
+		let m = super.findSiblingDevices(device, devices).get("com.fibaro.operatingMode");
+		if (m) {
+			controlService.operatingModeId = m.id;
+			controlService.subtype = device.id + "---" + m.id;
+		}
+		return [new ShadowService(controlService, controlCharacteristics)];
+	}
+}
+
