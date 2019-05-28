@@ -27,7 +27,7 @@
   ],
   "dependencies": {
     "request": "^2.88.0",
-    "typescript": "^2.2.2"
+    "typescript": "^3.4.5"
   },
   "devDependencies": {},
   "author": "ilcato",

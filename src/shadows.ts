@@ -1,11 +1,11 @@
 //    Copyright 2018 ilcato
-// 
+//
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
 //    You may obtain a copy of the License at
-// 
+//
 //        http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 //    Unless required by applicable law or agreed to in writing, software
 //    distributed under the License is distributed on an "AS IS" BASIS,
 //    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,6 +15,8 @@
 // Fibaro Home Center 2 Platform plugin for HomeBridge
 
 'use strict';
+
+import { BaseType } from './controlledDevices';
 
 export const pluginName = 'homebridge-fibaro-hc2';
 export const platformName = 'FibaroHC2';
@@ -52,7 +54,7 @@ export class ShadowAccessory {
 		this.hapCharacteristic = hapCharacteristic;
 		this.platform = platform;
 		this.isSecuritySystem = isSecuritySystem;
-		this.device = {id: device.id, name: device.name, type: device.type, properties: device.properties};
+		this.device = {...this.defaultDevice, ...{ id: device.id, name: device.name, type: device.type, properties: {...this.defaultDevice.properties, ...device.properties} } };
 
 		for (let i = 0; i < services.length; i++) {
 			if (services[i].controlService.subtype == undefined)
@@ -60,12 +62,20 @@ export class ShadowAccessory {
 		}
 	}
 
+	defaultDevice: any = {
+			"properties": {
+				"zwaveCompany": "IlCato",
+				"serialNumber": "<unknown>"
+			},
+			"type": "HomeCenterBridgedAccessory"
+	};
+
 	initAccessory() {
-		let manufacturer = (this.device.properties.zwaveCompany || "IlCato").replace("Fibargroup", "Fibar Group");
+		let manufacturer = this.device.properties.zwaveCompany.replace("Fibargroup", "Fibar Group");
 		this.accessory.getService(this.hapService.AccessoryInformation)
 			.setCharacteristic(this.hapCharacteristic.Manufacturer, manufacturer)
-			.setCharacteristic(this.hapCharacteristic.Model, `${this.device.type || "HomeCenterBridgedAccessory"}`)
-			.setCharacteristic(this.hapCharacteristic.SerialNumber, `${this.device.properties.serialNumber || "<unknown>"}`)
+			.setCharacteristic(this.hapCharacteristic.Model, this.device.type)
+			.setCharacteristic(this.hapCharacteristic.SerialNumber, this.device.properties.serialNumber)
 			.setCharacteristic(this.hapCharacteristic.FirmwareRevision, this.device.properties.zwaveVersion);
 	}
 
@@ -128,6 +138,7 @@ export class ShadowFactory {
 	platform: any;
 	provider: FactoryProvider;
 
+	baseTypes: Array<string>;
 
 	constructor(hapAccessory: any, hapService: any, hapCharacteristic: any, platform: any) {
 		this.hapAccessory = hapAccessory;
@@ -135,6 +146,7 @@ export class ShadowFactory {
 		this.hapCharacteristic = hapCharacteristic;
 		this.platform = platform;
 		this.provider = new FactoryProvider(hapService, hapCharacteristic);
+		this.baseTypes = new Array<string>();
 	}
 
 	createShadowAccessory(device: any, devices: any) {
@@ -183,6 +195,10 @@ export class ShadowFactory {
 		let controlService;
 
 		const {provider, hapService, hapCharacteristic} = this;
+
+		this.baseTypes.push(device.baseType);
+
+
 
 		switch (device.type) {
 			case "com.fibaro.multilevelSwitch":
@@ -237,7 +253,7 @@ export class ShadowFactory {
 			case "com.fibaro.doorSensor":
 			case "com.fibaro.windowSensor":
 			case "com.fibaro.satelZone":
-				ss = [new ShadowService(new hapService.ContactSensor(device.name), [hapCharacteristic.ContactSensorState])];
+				ss = provider.get(DoorSensorFactory).createService(device);
 				break;
 			case "com.fibaro.FGFS101":
 			case "com.fibaro.floodSensor":
@@ -248,7 +264,7 @@ export class ShadowFactory {
 				ss = [new ShadowService(new hapService.SmokeSensor(device.name), [hapCharacteristic.SmokeDetected])];
 				break;
 			case "com.fibaro.FGCD001":
-				ss = [new ShadowService(new hapService.CarbonMonoxideSensor(device.name), [hapCharacteristic.CarbonMonoxideDetected, hapCharacteristic.CarbonMonoxideLevel, hapCharacteristic.CarbonMonoxidePeakLevel, hapCharacteristic.BatteryLevel])];
+				ss = provider.get(CarbonMonoxideFactory).createService(device);
 				break;
 			case "com.fibaro.lightSensor":
 				ss = [new ShadowService(new hapService.LightSensor(device.name), [hapCharacteristic.CurrentAmbientLightLevel])];
@@ -298,14 +314,19 @@ export class ShadowFactory {
 				break;
 			case "com.fibaro.logitechHarmonyActivity":
 				controlService = new hapService.Switch(device.name);
-				controlService.subtype = device.id + "----" + "HP"; 					// HP: Harmony Plugin		
+				controlService.subtype = device.id + "----" + "HP"; 					// HP: Harmony Plugin
 				ss = [new ShadowService(controlService, [hapCharacteristic.On])];
 				break;
 			default:
+				ss = this.createGenericDevice(device);
 				break;
 		}
 
 		return ss;
+	}
+
+	createGenericDevice(device: any) : ShadowService[]{
+		return this.provider.getByBaseType(device.baseType).createService(device, undefined);
 	}
 }
 
@@ -315,15 +336,28 @@ export class FactoryProvider {
 
 	constructor(hapService: any, hapCharacteristic: any) {
 		this.hapService = hapService;
-		this.hapCharacteristic = hapCharacteristic
+		this.hapCharacteristic = hapCharacteristic;
 	}
 
 	get<T extends ServiceFactory>(testType: new(hapService: any, hapCharacteristic: any) => T): T {
 		return new testType(this.hapService, this.hapCharacteristic);
 	}
+
+	getByBaseType(baseType: string): ServiceFactory {
+		switch (BaseType[baseType]) {
+			case BaseType.coDetector:
+				return this.get(CarbonMonoxideFactory);
+			case BaseType.doorWindowSensor:
+				return this.get(DoorSensorFactory);
+			case BaseType.floodSensor:
+				return this.get(LeakSensorFactory);
+		}
+
+		return this.get(NoDeviceFactory);
+	}
 }
 
-export class ServiceFactory {
+export abstract class ServiceFactory {
 	hapService: any;
 	hapCharacteristic: any;
 
@@ -345,6 +379,8 @@ export class ServiceFactory {
 
 		return siblings;
 	}
+
+	abstract createService(device: any, devices?: Map<string, any>) : ShadowService[];
 }
 
 export class LightBulbFactory extends ServiceFactory {
@@ -415,5 +451,37 @@ export class GarageDoorFactory extends ServiceFactory {
 			new this.hapService.GarageDoorOpener(device.name),
 			[this.hapCharacteristic.CurrentDoorState, this.hapCharacteristic.TargetDoorState, this.hapCharacteristic.ObstructionDetected]
 		)];
+	}
+}
+export class CarbonMonoxideFactory extends ServiceFactory {
+	createService(device: any) {
+		return [new ShadowService(
+			new this.hapService.CarbonMonoxideSensor(device.name),
+			[this.hapCharacteristic.CarbonMonoxideDetected, this.hapCharacteristic.CarbonMonoxideLevel, this.hapCharacteristic.CarbonMonoxidePeakLevel, this.hapCharacteristic.BatteryLevel]
+		)];
+	}
+}
+
+export class DoorSensorFactory extends ServiceFactory {
+	createService(device: any) {
+		return [new ShadowService(
+			new this.hapService.ContactSensor(device.name),
+			[this.hapCharacteristic.ContactSensorState]
+		)];
+	}
+}
+
+export class LeakSensorFactory extends ServiceFactory {
+	createService(device: any) {
+		return [new ShadowService(
+			new this.hapService.LeakSensor(device.name),
+			[this.hapCharacteristic.LeakDetected]
+		)];
+	}
+}
+
+export class NoDeviceFactory extends ServiceFactory {
+	createService(device: any) {
+		return [];
 	}
 }

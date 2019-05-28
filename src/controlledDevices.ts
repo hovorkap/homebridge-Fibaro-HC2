@@ -1,5 +1,4 @@
-enum DimmerControlledDevice {
-	//From Dimmer
+export enum DimmerControlledDevice {
 	Other_Device = "1",
 	Garage_Door = "16",
 	Blinds = "18",
@@ -7,7 +6,7 @@ enum DimmerControlledDevice {
 	Lighting = "23"
 }
 
-enum SwitchControlledDevice {
+export enum SwitchControlledDevice {
 	Lighting = "2",
 	Sprinkler = "3",
 	PIN = "4",
@@ -30,7 +29,7 @@ enum SwitchControlledDevice {
 	Video_gate_open = "25"
 }
 
-enum RollerShutterControlledDevice {
+export enum RollerShutterControlledDevice {
 	Blind_with_positioning_inactive = "53",
 	Blind_with_positioning_active = "54",
 	Venetian_blind = "55",
@@ -39,8 +38,17 @@ enum RollerShutterControlledDevice {
 
 }
 
-enum RgbControlledDevice {
+export enum RgbControlledDevice {
 	RGBW_device = "50",
 	RGB_device = "51",
 	Output_Input = "52",
+}
+
+export enum BaseType {
+	actor = "com.fibaro.actor",
+	coDetector = "com.fibaro.coDetector",
+	weather = "com.fibaro.weather",
+	doorWindowSensor = "com.fibaro.doorWindowSensor",
+	multiLevelSensor = "com.fibaro.multilevelSensor",
+	floodSensor = "com.fibaro.floodSensor",
 }
